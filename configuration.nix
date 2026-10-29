@@ -56,6 +56,7 @@
   # services.displayManager.cosmic-greeter.enable = true;
 
   virtualisation.docker.enable = true;
+  virtualisation.docker.enableNvidia = true;
 
   # Configure keymap in X11
   services.xserver.xkb = {
@@ -102,7 +103,10 @@
   nixpkgs.config.allowUnfree = true;
 
   # NVIDIA driver for RTX 4090 Laptop GPU
-  hardware.graphics.enable = true;
+  hardware.graphics = {
+    enable = true;
+    enable32Bit = true;   # 32-битные библиотеки — их требует docker.enableNvidia
+  };
 
   services.xserver.videoDrivers = [
     "modesetting"
