@@ -21,6 +21,8 @@
   # networking.proxy.default = "http://user:password@proxy:port/";
   # networking.proxy.noProxy = "127.0.0.1,localhost,internal.domain";
 
+  nixpkgs.config.problems.handlers."gtk+".broken = "warn";
+
   # Enable networking
   networking.networkmanager.enable = true;
 
@@ -43,6 +45,7 @@
   };
 
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
+  nix.settings.trusted-users = [ "root" "username" ];
 
   # Enable the X11 windowing system.
   # You can disable this if you're only using the Wayland session.
@@ -51,6 +54,8 @@
   # Enable the KDE Plasma Desktop Environment.
   services.displayManager.sddm.enable = true;
   services.desktopManager.plasma6.enable = true;
+
+  services.flatpak.enable = true;
 
   # services.desktopManager.cosmic.enable = true;
   # services.displayManager.cosmic-greeter.enable = true;
@@ -80,6 +85,11 @@
     # jack.enable = true;
   };
 
+  # security.sudo.extraConfig = ''
+  #   Defaults env_editor
+  #   Defaults editor=/run/current-system/sw/bin/nvim
+  # '';
+
   # Enable touchpad support (enabled default in most desktopManager).
   # services.libinput.enable = true;
 
@@ -101,6 +111,10 @@
 
   # Allow unfree packages
   nixpkgs.config.allowUnfree = true;
+
+  hardware.bluetooth.enable = true;
+
+  services.blueman.enable = true;
 
   # NVIDIA driver for RTX 4090 Laptop GPU
   hardware.graphics = {
@@ -129,10 +143,19 @@
     };
   };
 
+  hardware.nvidia-container-toolkit.mounts = [{
+    hostPath = "/etc/nvidia-container-egl/10_nvidia.json";
+    containerPath = "/usr/share/glvnd/egl_vendor.d/10_nvidia.json";
+  }];
+
   programs.fish.enable = true;
 
   users.users.username.shell = pkgs.fish;
 
+  environment.variables = {
+    EDITOR = "nvim";
+    VISUAL = "nvim";
+  };
 
   # List packages installed in system profile.
   # You can use https://search.nixos.org/ to find more packages (and options).
@@ -148,6 +171,19 @@
     appimage-run
     telegram-desktop
     uv
+    tmux
+    onlyoffice-desktopeditors
+    wezterm
+    vlc
+    slack
+    klassy
+    gcc
+    gnumake
+    tree-sitter
+    stylua
+    ripgrep
+    unzip
+    nodejs
   ];
 
   # Some programs need SUID wrappers, can be configured further or are
