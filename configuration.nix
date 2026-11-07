@@ -21,7 +21,7 @@
   # networking.proxy.default = "http://user:password@proxy:port/";
   # networking.proxy.noProxy = "127.0.0.1,localhost,internal.domain";
 
-  nixpkgs.config.problems.handlers."gtk+".broken = "warn";
+  # nixpkgs.config.problems.handlers."gtk+".broken = "warn";
 
   # Enable networking
   networking.networkmanager.enable = true;
@@ -143,6 +143,8 @@
     };
   };
 
+  hardware.nvidia-container-toolkit.enable = true;
+
   hardware.nvidia-container-toolkit.mounts = [{
     hostPath = "/etc/nvidia-container-egl/10_nvidia.json";
     containerPath = "/usr/share/glvnd/egl_vendor.d/10_nvidia.json";
@@ -184,6 +186,17 @@
     ripgrep
     unzip
     nodejs
+	_7zz
+  ];
+
+  nixpkgs.overlays = [
+  (final: prev: {
+    opencode = prev.opencode.overrideAttrs (old: {
+      node_modules = old.node_modules.overrideAttrs (_: {
+        outputHash = "sha256-prx9dX7kUvs/E3zopkaPk5LXh3xJAy5sZeum/W8L7cA=";
+      });
+    });
+  })
   ];
 
   # Some programs need SUID wrappers, can be configured further or are

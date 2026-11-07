@@ -1,21 +1,15 @@
 {
-  inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-  };
+  description = "NixOS configuration";
 
-  outputs = { nixpkgs, ... }:
-    {
-      nixosConfigurations.nixos = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
-        modules = [
-          ./configuration.nix
+  outputs = { self, nixpkgs }: {
+    nixosConfigurations.nixos = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
 
-          ({ pkgs, ... }: {
-            environment.systemPackages = [
-            ];
-          })
-        ];
-      };
+      modules = [
+        ./configuration.nix
+      ];
     };
+  };
 }
