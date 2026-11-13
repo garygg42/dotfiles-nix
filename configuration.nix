@@ -26,8 +26,11 @@
   # Enable networking
   networking.networkmanager.enable = true;
 
+  networking.nameservers = [ "1.1.1.1" "8.8.8.8" ];
+
   # Set your time zone.
-  time.timeZone = "Europe/Warsaw";
+  # time.timeZone = "Europe/Warsaw";
+  time.timeZone = "Asia/Jerusalem";
 
   # Select internationalisation properties.
   i18n.defaultLocale = "en_US.UTF-8";
@@ -159,36 +162,6 @@
     VISUAL = "nvim";
   };
 
-  # List packages installed in system profile.
-  # You can use https://search.nixos.org/ to find more packages (and options).
-  environment.systemPackages = with pkgs; [
-    mesa-demos
-    pciutils
-    jq
-    git
-    neovim
-    vscode
-    opencode
-    fuse
-    appimage-run
-    telegram-desktop
-    uv
-    tmux
-    onlyoffice-desktopeditors
-    wezterm
-    vlc
-    slack
-    klassy
-    gcc
-    gnumake
-    tree-sitter
-    stylua
-    ripgrep
-    unzip
-    nodejs
-	_7zz
-  ];
-
   nixpkgs.overlays = [
   (final: prev: {
     opencode = prev.opencode.overrideAttrs (old: {
@@ -198,6 +171,14 @@
     });
   })
   ];
+
+  # networking.wg-quick.interfaces.surfshark = {
+  #   configFile = "/etc/wireguard/surfshark.conf";
+  # };
+  #
+  # systemd.services.wg-quick-surfshark.wantedBy = [
+  #   "multi-user.target"
+  # ];
 
   # Some programs need SUID wrappers, can be configured further or are
   # started in user sessions.
@@ -241,5 +222,40 @@
   #
   # For more information, see `man configuration.nix` or https://nixos.org/manual/nixos/stable/options#opt-system.stateVersion .
   system.stateVersion = "26.05"; # Did you read the comment?
+
+  # List packages installed in system profile.
+  # You can use https://search.nixos.org/ to find more packages (and options).
+  environment.systemPackages = with pkgs; [
+    mesa-demos
+    pciutils
+    jq
+    git
+    neovim
+    vscode
+    opencode
+    fuse
+    appimage-run
+    telegram-desktop
+    uv
+    tmux
+    onlyoffice-desktopeditors
+    wezterm
+    vlc
+    slack
+    klassy
+    gcc
+    gnumake
+    tree-sitter
+    stylua
+    ripgrep
+    unzip
+    nodejs
+	_7zz
+	obs-studio
+	wireguard-tools
+    rpi-imager
+	chromium
+	tcpdump
+  ];
 
 }
