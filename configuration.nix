@@ -4,6 +4,12 @@
 
 { config, pkgs, ... }:
 
+let
+  # ===== Wi-Fi hotspot: раздача интернета от второй Wi-Fi сети =====
+  sta = "wlo1";  # клиентский интерфейс (интернет отеля)
+  ap  = "ap0";   # виртуальный интерфейс точки доступа (та же карта)
+in
+
 {
   imports =
     [ # Include the results of the hardware scan.
@@ -27,6 +33,79 @@
   networking.networkmanager.enable = true;
 
   networking.nameservers = [ "1.1.1.1" "8.8.8.8" ];
+
+  # ===== Wi-Fi hotspot: AP на ap0, интернет от wlo1 =====
+
+  systemd.services.wlan-ap0 = {
+    description = "Create ap0 virtual WLAN interface for hotspot";
+    bindsTo = [ "sys-subsystem-net-devices-wlo1.device" ];
+    after = [ "sys-subsystem-net-devices-wlo1.device" ];
+    before = [ "hostapd.service" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      Restart = "on-failure";
+      RestartSec = "5s";
+      ExecStartPre = "-${pkgs.iproute2}/bin/ip link del ap0";
+      ExecStart = [
+        "${pkgs.iw}/bin/iw dev wlo1 interface add ap0 type managed"
+        "${pkgs.iproute2}/bin/ip link set ap0 address 02:00:00:00:00:02"
+        "${pkgs.iproute2}/bin/ip addr add 192.168.12.1/24 dev ap0"
+        "${pkgs.iproute2}/bin/ip link set ap0 up"
+      ];
+      ExecStop = "${pkgs.iproute2}/bin/ip link del ap0";
+    };
+  };
+
+  # wpa_supplicant (бэкенд NM) — только клиентский интерфейс, не ap0
+  networking.wireless.interfaces = [ sta ];
+
+  # Точка доступа на канале 11 — том же, где клиент (иначе не заведётся)
+  services.hostapd = {
+    enable = true;
+    radios.${ap} = {
+      band = "2g";
+      channel = 11;
+      networks.${ap} = {
+        ssid = "devpi-hotspot";
+        authentication = {
+          mode = "wpa2-sha256";
+          wpaPassword = "Shawarma0077";
+        };
+      };
+    };
+  };
+
+  # DHCP + DNS для клиентов AP
+  services.dnsmasq = {
+    enable = true;
+    settings = {
+      interface = ap;
+      bind-interfaces = true;
+      dhcp-range = "192.168.12.10,192.168.12.200,255.255.255.0,12h";
+      server = [ "1.1.1.1" "8.8.8.8" ];
+    };
+  };
+
+  # NAT: клиенты ap0 выходят в интернет через wlo1
+  boot.kernel.sysctl."net.ipv4.ip_forward" = 1;
+  networking.nat = {
+    enable = true;
+    internalInterfaces = [ ap ];
+    externalInterface = sta;
+  };
+
+  # Пропустить DHCP/DNS для клиентов через фаервол
+  networking.firewall.interfaces.${ap} = {
+    allowedUDPPorts = [ 53 67 ];
+    allowedTCPPorts = [ 53 ];
+  };
+
+  # NM не должен управлять ap0
+  networking.networkmanager.unmanaged = [ "interface-name:ap0" ];
+
+  # ===== конец Wi-Fi hotspot =====
 
   # Set your time zone.
   # time.timeZone = "Europe/Warsaw";
@@ -172,33 +251,6 @@
   })
   ];
 
-  # networking.wg-quick.interfaces.surfshark = {
-  #   configFile = "/etc/wireguard/surfshark.conf";
-  # };
-  #
-  # systemd.services.wg-quick-surfshark.wantedBy = [
-  #   "multi-user.target"
-  # ];
-
-  # Some programs need SUID wrappers, can be configured further or are
-  # started in user sessions.
-  # programs.mtr.enable = true;
-  # programs.gnupg.agent = {
-  #   enable = true;
-  #   enableSSHSupport = true;
-  # };
-
-  # List services that you want to enable:
-
-  # Enable the OpenSSH daemon.
-  # services.openssh.enable = true;
-
-  # Open ports in the firewall.
-  # networking.firewall.allowedTCPPorts = [ ... ];
-  # networking.firewall.allowedUDPPorts = [ ... ];
-  # Or disable the firewall altogether.
-  # networking.firewall.enable = false;
-
   # Copy the NixOS configuration file and link it from the resulting system
   # (/run/current-system/configuration.nix). This is useful in case you
   # accidentally delete configuration.nix.
@@ -250,12 +302,13 @@
     ripgrep
     unzip
     nodejs
-	_7zz
-	obs-studio
-	wireguard-tools
+    _7zz
+    obs-studio
+    wireguard-tools
     rpi-imager
-	chromium
-	tcpdump
+    chromium
+    tcpdump
+    iw
   ];
 
 }
