@@ -1,7 +1,13 @@
+# Разработка и пакеты: docker, nix-ld, overlays, системные пакеты.
 { config, pkgs, ... }:
 
 {
   virtualisation.docker.enable = true;
+
+  systemd.services.docker.path = [ pkgs.nvidia-container-toolkit.tools ];
+  virtualisation.docker.daemon.settings = {
+    runtimes.nvidia.path = "${pkgs.nvidia-container-toolkit.tools}/bin/nvidia-container-runtime";
+  };
 
   programs.nix-ld.enable = true;
 
@@ -46,7 +52,5 @@
     cargo
     rustfmt
     clippy
-    opencode
-    opencode-desktop
   ];
 }
