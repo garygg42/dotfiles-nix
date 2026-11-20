@@ -4,35 +4,30 @@
 
 { config, pkgs, ... }:
 
-let
-  # ===== Wi-Fi hotspot: раздача интернета от второй Wi-Fi сети =====
-  sta = "wlo1";  # клиентский интерфейс (интернет отеля)
-  ap  = "ap0";   # виртуальный интерфейс точки доступа (та же карта)
-in
-
 {
-  imports =
-    [ # Include the results of the hardware scan.
-      ./hardware-configuration.nix
-    ];
+  imports = [
+    # Include the results of the hardware scan.
+    ./hardware-configuration.nix
+  ];
 
   # Use the systemd-boot EFI boot loader.
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
   networking.hostName = "nixos"; # Define your hostname.
-  # networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
+  # networking.wireless.enable = true;  # НИКОГДА не включать вместе с NetworkManager
 
   # Configure network proxy if necessary
   # networking.proxy.default = "http://user:password@proxy:port/";
   # networking.proxy.noProxy = "127.0.0.1,localhost,internal.domain";
 
-  # nixpkgs.config.problems.handlers."gtk+".broken = "warn";
-
   # Enable networking
   networking.networkmanager.enable = true;
 
-  networking.nameservers = [ "1.1.1.1" "8.8.8.8" ];
+  networking.nameservers = [
+    "1.1.1.1"
+    "8.8.8.8"
+  ];
 
   services.udev.extraRules = ''
     # Не отдавать порты полётников ModemManager'у
@@ -49,14 +44,30 @@ in
     SUBSYSTEM=="usb", ATTRS{idVendor}=="2e3c", MODE="0666"
     SUBSYSTEM=="usb", ATTRS{idVendor}=="28e9", MODE="0666"
   '';
-
-  # # ===== Wi-Fi hotspot: AP на ap0, интернет от wlo1 =====
+  # # ===== Wi-Fi hotspot средствами NetworkManager =====
+  # # NM сам не создаёт виртуальные интерфейсы — ap0 создаёт юнит ниже.
+  # # Дальше всё делает NM: канал синхронизируется с клиентской сетью,
+  # # dnsmasq (DHCP+DNS) и iptables (NAT) включаются при активации.
+  # # Аплинк не нужен: AP работает всегда, интернет появляется,
+  # # как только wlo1 куда-то подключится.
   #
+  # # NM нужны бинари dnsmasq и iptables для режима shared
+  # systemd.services.NetworkManager.path = with pkgs; [
+  #   dnsmasq
+  #   iptables
+  # ];
+  #
+  # boot.kernel.sysctl."net.ipv4.ip_forward" = 1;
+  #
+  # # Создание виртуального интерфейса ap0 на карте wlo1.
+  # # Ретраи нужны, чтобы не соревноваться с wpa_supplicant за карту при загрузке.
   # systemd.services.wlan-ap0 = {
-  #   description = "Create ap0 virtual WLAN interface for hotspot";
+  #   description = "Create ap0 virtual WLAN interface for NM hotspot";
   #   bindsTo = [ "sys-subsystem-net-devices-wlo1.device" ];
-  #   after = [ "sys-subsystem-net-devices-wlo1.device" ];
-  #   before = [ "hostapd.service" ];
+  #   after = [
+  #     "sys-subsystem-net-devices-wlo1.device"
+  #     "NetworkManager.service"
+  #   ];
   #   wantedBy = [ "multi-user.target" ];
   #   serviceConfig = {
   #     Type = "oneshot";
@@ -64,63 +75,56 @@ in
   #     Restart = "on-failure";
   #     RestartSec = "5s";
   #     ExecStartPre = "-${pkgs.iproute2}/bin/ip link del ap0";
-  #     ExecStart = [
-  #       "${pkgs.iw}/bin/iw dev wlo1 interface add ap0 type managed"
-  #       "${pkgs.iproute2}/bin/ip link set ap0 address 02:00:00:00:00:02"
-  #       "${pkgs.iproute2}/bin/ip addr add 192.168.12.1/24 dev ap0"
-  #       "${pkgs.iproute2}/bin/ip link set ap0 up"
-  #     ];
-  #     ExecStop = "${pkgs.iproute2}/bin/ip link del ap0";
+  #     ExecStart =
+  #       let
+  #         createAp = pkgs.writeShellScript "create-ap0" ''
+  #           ok=0
+  #           for i in $(${pkgs.coreutils}/bin/seq 1 30); do
+  #             if ${pkgs.iw}/bin/iw dev wlo1 interface add ap0; then ok=1; break; fi
+  #             echo "retry $i: waiting for wlo1..." >&2
+  #             ${pkgs.coreutils}/bin/sleep 2
+  #           done
+  #           [ "$ok" = 1 ] || exit 1
+  #           ${pkgs.iproute2}/bin/ip link set ap0 address 02:00:00:00:00:02
+  #           ${pkgs.iproute2}/bin/ip link set ap0 up
+  #         '';
+  #       in
+  #       [ "${createAp}" ];
   #   };
   # };
   #
-  # # wpa_supplicant (бэкенд NM) — только клиентский интерфейс, не ap0
-  # networking.wireless.interfaces = [ sta ];
-  #
-  # # Точка доступа на канале 11 — том же, где клиент (иначе не заведётся)
-  # services.hostapd = {
-  #   enable = true;
-  #   radios.${ap} = {
-  #     band = "2g";
-  #     channel = 11;
-  #     networks.${ap} = {
-  #       ssid = "devpi-hotspot";
-  #       authentication = {
-  #         mode = "wpa2-sha256";
-  #         wpaPassword = "Shawarma0077";
-  #       };
-  #     };
+  # networking.networkmanager.ensureProfiles.profiles.hotspot = {
+  #   connection = {
+  #     id = "hotspot";
+  #     type = "wifi";
+  #     autoconnect = "true";
+  #     permissions = "";
+  #     interface-name = "ap0";
   #   };
-  # };
-  #
-  # # DHCP + DNS для клиентов AP
-  # services.dnsmasq = {
-  #   enable = true;
-  #   settings = {
-  #     interface = ap;
-  #     bind-interfaces = true;
-  #     dhcp-range = "192.168.12.10,192.168.12.200,255.255.255.0,12h";
-  #     server = [ "1.1.1.1" "8.8.8.8" ];
+  #   wifi = {
+  #     mode = "ap";
+  #     ssid = "devpi-hotspot";
   #   };
+  #   wifi-security = {
+  #     key-mgmt = "wpa-psk";
+  #     psk = "Shawarma0077";
+  #   };
+  #   ipv4 = {
+  #     method = "shared";
+  #     address1 = "192.168.12.1/24,192.168.12.1";
+  #   };
+  #   ipv6.method = "ignore";
   # };
   #
-  # # NAT: клиенты ap0 выходят в интернет через wlo1
-  # boot.kernel.sysctl."net.ipv4.ip_forward" = 1;
-  # networking.nat = {
-  #   enable = true;
-  #   internalInterfaces = [ ap ];
-  #   externalInterface = sta;
-  # };
-  #
-  # # Пропустить DHCP/DNS для клиентов через фаервол
-  # networking.firewall.interfaces.${ap} = {
-  #   allowedUDPPorts = [ 53 67 ];
+  # # Клиентам хотспота нужны DHCP и DNS
+  # networking.firewall.interfaces."ap0" = {
+  #   allowedUDPPorts = [
+  #     53
+  #     67
+  #     68
+  #   ];
   #   allowedTCPPorts = [ 53 ];
   # };
-  #
-  # # NM не должен управлять ap0
-  # networking.networkmanager.unmanaged = [ "interface-name:ap0" ];
-  #
   # # ===== конец Wi-Fi hotspot =====
 
   # Set your time zone.
@@ -142,8 +146,14 @@ in
     LC_TIME = "en_US.UTF-8";
   };
 
-  nix.settings.experimental-features = [ "nix-command" "flakes" ];
-  nix.settings.trusted-users = [ "root" "username" ];
+  nix.settings.experimental-features = [
+    "nix-command"
+    "flakes"
+  ];
+  nix.settings.trusted-users = [
+    "root"
+    "username"
+  ];
 
   # Enable the X11 windowing system.
   # You can disable this if you're only using the Wayland session.
@@ -195,10 +205,15 @@ in
   users.users."username" = {
     isNormalUser = true;
     description = "username";
-    extraGroups = [ "networkmanager" "wheel" "docker" "dialout"];
+    extraGroups = [
+      "networkmanager"
+      "wheel"
+      "docker"
+      "dialout"
+    ];
     packages = with pkgs; [
       kdePackages.kate
-    #  thunderbird
+      #  thunderbird
     ];
   };
 
@@ -217,7 +232,7 @@ in
   # NVIDIA driver for RTX 4090 Laptop GPU
   hardware.graphics = {
     enable = true;
-    enable32Bit = true;   # 32-битные библиотеки — их требует docker.enableNvidia
+    enable32Bit = true; # 32-битные библиотеки — их требует docker.enableNvidia
   };
 
   services.xserver.videoDrivers = [
@@ -243,10 +258,12 @@ in
 
   hardware.nvidia-container-toolkit.enable = true;
 
-  hardware.nvidia-container-toolkit.mounts = [{
-    hostPath = "/etc/nvidia-container-egl/10_nvidia.json";
-    containerPath = "/usr/share/glvnd/egl_vendor.d/10_nvidia.json";
-  }];
+  hardware.nvidia-container-toolkit.mounts = [
+    {
+      hostPath = "/etc/nvidia-container-egl/10_nvidia.json";
+      containerPath = "/usr/share/glvnd/egl_vendor.d/10_nvidia.json";
+    }
+  ];
 
   programs.fish.enable = true;
 
@@ -258,13 +275,13 @@ in
   };
 
   nixpkgs.overlays = [
-  (final: prev: {
-    opencode = prev.opencode.overrideAttrs (old: {
-      node_modules = old.node_modules.overrideAttrs (_: {
-        outputHash = "sha256-prx9dX7kUvs/E3zopkaPk5LXh3xJAy5sZeum/W8L7cA=";
+    (final: prev: {
+      opencode = prev.opencode.overrideAttrs (old: {
+        node_modules = old.node_modules.overrideAttrs (_: {
+          outputHash = "sha256-prx9dX7kUvs/E3zopkaPk5LXh3xJAy5sZeum/W8L7cA=";
+        });
       });
-    });
-  })
+    })
   ];
 
   # Copy the NixOS configuration file and link it from the resulting system
@@ -325,10 +342,15 @@ in
     chromium
     tcpdump
     iw
-	  lazygit
-	  gdu
-	  gparted
-	  wl-clipboard
+    lazygit
+    gdu
+    gparted
+    wl-clipboard
+    linux-wifi-hotspot
+    rustc
+    cargo
+    rustfmt
+    clippy
   ];
 
 }
