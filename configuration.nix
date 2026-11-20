@@ -124,8 +124,8 @@ in
   # # ===== конец Wi-Fi hotspot =====
 
   # Set your time zone.
-  # time.timeZone = "Europe/Warsaw";
-  time.timeZone = "Asia/Jerusalem";
+  time.timeZone = "Europe/Warsaw";
+  # time.timeZone = "Asia/Jerusalem";
 
   # Select internationalisation properties.
   i18n.defaultLocale = "en_US.UTF-8";
