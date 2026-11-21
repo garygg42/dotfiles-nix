@@ -39,5 +39,9 @@
     "username"
   ];
 
+  fonts.packages = with pkgs; [
+    nerd-fonts.jetbrains-mono
+  ];
+
   system.stateVersion = "26.05";
 }

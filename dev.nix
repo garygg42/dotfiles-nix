@@ -11,12 +11,15 @@
 
   programs.nix-ld.enable = true;
 
+  programs.yazi.enable = true;
+
   environment.systemPackages = with pkgs; [
     mesa-demos
     pciutils
     jq
     git
     neovim
+    neovide
     vscode
     opencode
     fuse
@@ -52,5 +55,6 @@
     cargo
     rustfmt
     clippy
+    btop
   ];
 }
